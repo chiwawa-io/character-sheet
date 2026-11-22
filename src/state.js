@@ -170,8 +170,8 @@ export function claimMilestone(id) {
 /** Claimed rewards come from milestone snapshots, so deleting/editing a reward never changes them. */
 export function collection() {
   const claimed = state.milestones.filter((m) => m.claimedAt)
-    .sort((a, b) => b.claimedAt.localeCompare(a.claimedAt))
     .map((m) => ({ ...m.snapshot, claimedAt: m.claimedAt, days: m.days }));
-  const locked = state.rewards.filter((r) => !r.claimedAt).sort((a, b) => b.rating - a.rating);
+  claimed.sort((a, b) => a.rating - b.rating || a.claimedAt.localeCompare(b.claimedAt));
+  const locked = state.rewards.filter((r) => !r.claimedAt).sort((a, b) => a.rating - b.rating);
   return { claimed, locked };
 }

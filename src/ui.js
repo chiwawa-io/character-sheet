@@ -173,16 +173,16 @@ function viewRewards() {
       <div class="ms-slot">${slot}</div>${m.claimedAt ? '' : iconBtn('edit-ms', m.id, 'edit', 'Edit milestone')}</li>`;
   }).join('');
   const tiles = [
-    ...col.claimed.map((c) => `<div class="tile got" data-rating="${c.rating}"><span class="rar">${rarityName(c.rating)}</span>${pips(c.rating)}<h4>${esc(c.title)}</h4><span class="meta">${formatShort(c.claimedAt)} · day ${c.days}</span></div>`),
-    ...col.locked.map((r) => `<div class="tile silhouette" data-rating="${r.rating}">${icon('lock', 18)}${pips(r.rating)}<span class="meta">Locked</span></div>`),
-  ].join('');
+    ...col.claimed.map((c) => ({ rating: c.rating, got: 0, html: `<div class="tile got" data-rating="${c.rating}"><span class="rar">${rarityName(c.rating)}</span>${pips(c.rating)}<h4>${esc(c.title)}</h4><span class="meta">${formatShort(c.claimedAt)} · day ${c.days}</span></div>` })),
+    ...col.locked.map((r) => ({ rating: r.rating, got: 1, html: `<div class="tile silhouette" data-rating="${r.rating}">${icon('lock', 18)}${pips(r.rating)}<span class="meta">Locked</span></div>` })),
+  ].sort((x, y) => x.rating - y.rating || x.got - y.got).map((t) => t.html).join('');
   return `<header class="page-head"><div><p class="eyebrow">Rewards</p><h1>Milestones</h1></div>
       <div class="head-actions"><button class="btn" data-action="redistribute">${icon('shuffle', 16)} Redistribute</button>
       <button class="btn" data-action="add-ms">${icon('plus', 16)} Milestone</button></div></header>
     <ul class="ms-list">${rows || '<li class="hint">No milestones yet.</li>'}</ul>
     <section class="panel"><h2>Collection</h2><div class="tiles">${tiles || '<p class="hint">Nothing here yet. Add rewards below.</p>'}</div></section>
     <section class="panel"><div class="row"><h2>Reward list</h2><button class="btn small" data-action="add-reward">${icon('plus', 14)} Reward</button></div>
-      <ul class="rlist">${st.rewards.map((r) => `<li><span class="t">${esc(r.title)}</span>${pips(r.rating)}${
+      <ul class="rlist">${[...st.rewards].sort((a, b) => a.rating - b.rating).map((r) => `<li><span class="t">${esc(r.title)}</span>${pips(r.rating)}${
         r.claimedAt ? '<span class="meta">Claimed</span>' : iconBtn('edit-reward', r.id, 'edit', 'Edit reward')}</li>`).join('') || '<li class="hint">Add a few prizes, from a trifle to a big one.</li>'}</ul>
       <p class="hint">Higher streak thresholds get higher ratings. Rewards with the same rating are drawn at random. A milestone with no match stays empty.</p></section>`;
 }
