@@ -26,7 +26,12 @@ const set = (patch) => { Object.assign(status, patch); watchers.forEach((w) => w
 async function rpc(fn, args, key) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
     method: 'POST',
-    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+    // New-style publishable keys (sb_publishable_…) are not JWTs, so they go in `apikey` only.
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      ...(SUPABASE_ANON_KEY.startsWith('eyJ') ? { Authorization: `Bearer ${SUPABASE_ANON_KEY}` } : {}),
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify({ p_key: key, ...args }),
   });
   if (!res.ok) throw new Error(`Sync server said ${res.status}`);
