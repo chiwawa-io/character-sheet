@@ -8,7 +8,7 @@ import { start } from './sync.js';
 
 // A sync link looks like .../#k=<code>. Take the code and clean the address bar.
 const m = location.hash.match(/^#k=([A-Za-z0-9_-]+)/);
-history.replaceState(null, '', location.pathname + location.search + '#/today');
+if (m) history.replaceState(null, '', location.pathname + location.search + '#/today');
 
 init();
 start();
