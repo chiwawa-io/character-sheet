@@ -259,3 +259,13 @@ legend { font-size: 13px; color: var(--text-2); margin-bottom: 8px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
 }
+
+/* sync */
+.sync-line { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.sync-line .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
+.sync-line.ok .dot { background: var(--pos); }
+.sync-line.error .dot { background: var(--neg); }
+.sync-line.syncing .dot { background: var(--accent); }
+.panel .head-actions { margin-top: 12px; }
+.join { display: flex; gap: 8px; align-items: flex-end; margin-top: 20px; }
+.join .field { flex: 1; }

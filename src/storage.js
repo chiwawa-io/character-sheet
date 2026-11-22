@@ -24,6 +24,7 @@ export function seedState() {
   }));
   return {
     version: SCHEMA_VERSION,
+    updatedAt: 0,
     settings: defaultSettings(),
     goal: { text: 'Simple freedom', minAction: '15 minutes on the main goal' },
     values: [
@@ -59,6 +60,7 @@ export function normalize(raw) {
   }
   return {
     version: SCHEMA_VERSION,
+    updatedAt: Number(raw.updatedAt) || 0,
     settings: { ...defaultSettings(), ...(raw.settings || {}) },
     goal: { text: '', minAction: '', ...(raw.goal || {}) },
     values: raw.values || [],

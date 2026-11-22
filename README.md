@@ -37,10 +37,21 @@ milestones    [{ id, days, rewardId, claimedAt, snapshot }]
 
 **Back up:** Manage → Data → *Export to JSON* downloads a file. **Restore or move to another device:** *Import from JSON* on the other browser (it replaces what is there). Clearing site data deletes your progress, so export now and then.
 
+## Cross-device sync (optional)
+
+Data lives in each browser's `localStorage` by default, so a deployed site alone does not share it between devices. Optional sync stores one copy in Supabase:
+
+1. Create a free Supabase project and run [`supabase.sql`](supabase.sql) in its SQL editor. The table is closed to the public API. Two functions, `get_sheet` and `put_sheet`, are the only way in, and both need a long secret code. Only its SHA-256 is stored.
+2. Put the project URL and the **anon** key into [`src/config.js`](src/config.js). Both are public by design. Never use the service-role key here.
+3. Deploy. In **Manage → Sync**, *Turn on sync* generates a 64-character code. *Copy sync link* gives `…/character-sheet/#k=<code>`. Opening that link on another device connects it.
+
+How it merges: the whole document is replaced by the newer `updatedAt` (last write wins). Edits push after about a second, and the app pulls when you return to the tab. Avoid editing on two devices at the same moment. Anyone with the link can read and change the data, so treat it like a password. JSON export stays available as a backup.
+
 ## Code layout
 
 | File | Role |
 | --- | --- |
+| `src/sync.js`, `src/config.js`, `supabase.sql` | optional Supabase sync |
 | `src/storage.js` | localStorage, seed data, JSON export/import validation |
 | `src/state.js` | the store, selectors and every action |
 | `src/streak.js` | streak, freeze and daily percentage logic (pure) |

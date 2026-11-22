@@ -1,5 +1,5 @@
 // Single mutable store. Every change goes through commit(), which saves and notifies.
-import { load, save, seedState, uid, parseImport } from './storage.js';
+import { load, save, seedState, uid, parseImport, normalize } from './storage.js';
 import { toKey } from './dates.js';
 import { levelInfo } from './levels.js';
 import { computeStreak, streakDays, dayPercent } from './streak.js';
@@ -15,15 +15,30 @@ const listeners = new Set();
 export const getState = () => state;
 export const subscribe = (fn) => (listeners.add(fn), () => listeners.delete(fn));
 
+// Local edits bump updatedAt (last write wins when syncing) and tell the sync layer.
+const localListeners = new Set();
+export const onLocalChange = (fn) => (localListeners.add(fn), () => localListeners.delete(fn));
+
 export function commit(fn) {
   const out = fn(state);
+  state.updatedAt = Date.now();
   save(state);
   listeners.forEach((l) => l());
+  localListeners.forEach((l) => l());
   return out;
 }
 
 export function replaceState(text) {
   state = parseImport(text);
+  state.updatedAt = Date.now();
+  save(state);
+  listeners.forEach((l) => l());
+  localListeners.forEach((l) => l());
+}
+
+/** Adopt data that came from the cloud: no bump, no push back. */
+export function applyRemote(obj) {
+  state = normalize(obj);
   save(state);
   listeners.forEach((l) => l());
 }

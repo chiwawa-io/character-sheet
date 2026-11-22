@@ -7,6 +7,7 @@ import { addDays, formatLong, formatShort, toKey, weekStart } from './dates.js';
 import { xpForLevel } from './levels.js';
 import { targetRating } from './rewards.js';
 import { exportJson } from './storage.js';
+import * as Sync from './sync.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const num = (n) => Math.round(n).toLocaleString('en-US');
@@ -222,12 +223,37 @@ function viewManage() {
       <label class="field check"><input type="checkbox" data-setting="freezeEnabled" ${s.freezeEnabled ? 'checked' : ''}><span>Soft freeze: a skipped day will not reset the streak</span></label>
       ${field('Freezes per week', 'freezePerWeek', s.freezePerWeek, 'number', `min="1" max="6" ${s.freezeEnabled ? '' : 'disabled'}`)}</div>
       <p class="hint">Level n needs base × growth^(n−1). ${lvls}</p></section>
+    ${syncPanel()}
     <section class="panel"><h2>Data</h2>
       <p class="hint">Everything lives in this browser. Export a file to back up or move to another device.</p>
       <div class="head-actions"><button class="btn" data-action="export">${icon('download', 16)} Export to JSON</button>
       <button class="btn" data-action="import">${icon('upload', 16)} Import from JSON</button>
       <button class="btn danger" data-action="reset">${icon('reset', 16)} Reset</button></div>
       <input type="file" id="import-file" accept="application/json,.json" hidden></section>`;
+}
+
+
+function syncPanel() {
+  if (!Sync.isConfigured()) {
+    return `<section class="panel"><h2>Sync</h2><p class="hint">Cloud sync is not configured in this build, so data stays in this browser. Use export and import to move it.</p></section>`;
+  }
+  const key = Sync.getKey(), st = Sync.status;
+  const line = st.state === 'syncing' ? 'Syncing…' : st.state === 'error' ? `Sync problem: ${esc(st.error)}`
+    : st.state === 'ok' ? `Synced at ${new Date(st.at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}` : 'On';
+  if (!key) {
+    return `<section class="panel"><h2>Sync</h2>
+      <p class="hint">Right now this data lives only in this browser. Turn on sync to keep it in the cloud and open it on any device with a private link.</p>
+      <div class="head-actions"><button class="btn primary" data-action="sync-on">Turn on sync</button></div>
+      <div class="join"><label class="field"><span>Already synced elsewhere? Paste the sync code or link</span>
+        <input id="sync-code" type="text" autocomplete="off" spellcheck="false"></label>
+        <button class="btn" data-action="sync-join">Connect</button></div></section>`;
+  }
+  return `<section class="panel"><h2>Sync</h2>
+    <p class="sync-line ${st.state}"><i class="dot"></i>${line}</p>
+    <p class="hint">Anyone with the sync link can read and change your data, so keep it private. Open it on another device to connect that device.</p>
+    <div class="head-actions"><button class="btn primary" data-action="sync-copy">${icon('link', 16)} Copy sync link</button>
+      <button class="btn" data-action="sync-now">Sync now</button>
+      <button class="btn danger" data-action="sync-off">Turn off here</button></div></section>`;
 }
 
 const VIEWS = { today: viewToday, sheet: viewSheet, streak: viewStreak, rewards: viewRewards, manage: viewManage };
@@ -356,6 +382,19 @@ const actions = {
   'r-up': (el) => S.moveRule(el.dataset.id, -1),
   'r-down': (el) => S.moveRule(el.dataset.id, 1),
   'r-archive': (el) => { const r = find(S.getState().rules, el.dataset.id); S.updateRule(r.id, { archived: !r.archived }); },
+  async 'sync-on'() {
+    try { await Sync.enable(Sync.newKey()); toast('Sync is on. Copy the link to use it elsewhere'); } catch (e) { Sync.disable(); toast(`Could not turn on sync: ${e.message}`); }
+    render();
+  },
+  'sync-join'() {
+    const raw = (document.getElementById('sync-code').value || '').trim();
+    joinSync(raw.includes('k=') ? raw.split('k=').pop() : raw);
+  },
+  async 'sync-copy'() {
+    try { await navigator.clipboard.writeText(Sync.syncLink()); toast('Sync link copied'); } catch { window.prompt('Copy your sync link', Sync.syncLink()); }
+  },
+  'sync-now': () => Sync.reconcile(),
+  'sync-off': () => confirmBox({ title: 'Turn off sync here?', text: 'This device keeps its data but stops syncing. Your cloud copy stays and the link keeps working elsewhere.', confirmLabel: 'Turn off', danger: true, onConfirm: () => { Sync.disable(); render(); } }),
   export() {
     const blob = new Blob([exportJson(S.getState())], { type: 'application/json' });
     const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `character-sheet-${toKey()}.json` });
@@ -364,11 +403,26 @@ const actions = {
   },
   import: () => document.getElementById('import-file').click(),
   reset: () => confirmBox({
-    title: 'Reset everything?', text: 'This erases all values, rules, history and rewards in this browser. Export first if unsure.',
+    title: 'Reset everything?', text: 'This erases all values, rules, history and rewards in this browser and turns sync off here. A cloud copy, if any, is kept. Export first if unsure.',
     confirmLabel: 'Erase', danger: true,
-    onConfirm: () => { localStorage.clear(); location.reload(); },
+    onConfirm: () => { Sync.disable(); localStorage.clear(); location.reload(); },
   }),
 };
+
+
+/** Connect this device to an existing sync code (typed in or from a link). */
+export async function joinSync(key) {
+  if (!Sync.isConfigured()) return;
+  if (!Sync.isValidKey(key)) { toast('That sync code does not look right'); return; }
+  try {
+    const remote = await Sync.fetchRemote(key);
+    if (!remote) { toast('No data found for that code'); return; }
+    const untouched = S.getState().updatedAt === 0;
+    const go = async () => { await Sync.enable(key, { useRemote: true }); toast('Connected. Data loaded from the cloud'); render(); };
+    if (untouched) await go();
+    else confirmBox({ title: 'Replace this device\'s data?', text: 'This browser already has data. Connecting replaces it with the synced copy. Export first if you want to keep it.', confirmLabel: 'Use synced data', danger: true, onConfirm: go });
+  } catch (e) { toast(`Could not connect: ${e.message}`); }
+}
 
 export function init() {
   const app = document.getElementById('app');
@@ -398,5 +452,6 @@ export function init() {
   });
   window.addEventListener('hashchange', () => { window.scrollTo(0, 0); render(); });
   S.subscribe(render);
+  Sync.onStatus(() => { if (route() === 'manage' && !document.querySelector('dialog[open]')) render(); });
   render();
 }
